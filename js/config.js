@@ -1,8 +1,8 @@
 // ===== BACKEND CONFIG =====
 // Yaha apni Supabase details dalo (free hai - supabase.com se milegi)
 const BACKEND_CONFIG = {
-  SUPABASE_URL: "https://tumhara-project.supabase.co",
-  SUPABASE_ANON_KEY: "tumhari-anon-key-yaha-paste-karo",
+  SUPABASE_URL: "https://nhluysdpqynbbgeiznes.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_rtb2e41WlBkghbP7XQ9guQ_kt_LUbm-",
   API_BASE: "/api"
 };
 
