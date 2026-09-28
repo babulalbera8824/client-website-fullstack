@@ -1,75 +1,112 @@
-// ===== FULL STACK SYNC =====
-// Ye file tumhari website ko full stack banati hai
-// UI me koi change nahi hoga, bas data ab browser ke bajaye backend me save hoga
-
+// Backend sync helper - Supabase se data load/save
+// FIX: ab data TURANT save hota hai (pehle tab switch ka wait karta tha)
 (function(){
-  const CFG = window.BACKEND_CONFIG || { API_BASE: "/api" };
-  const PREFIX = "pj_"; // tumhari site ki keys: pj_profile_photo, pj_social etc.
+  const CFG = window.BACKEND_CONFIG || {API_BASE:"/api"};
 
-  // 1. Page load par backend se data lao aur localStorage me bharo
-  async function loadFromBackend(){
+  // Saara pj_ data ikattha karo
+  function collectData(){
+    const data = {};
     try{
-      const res = await fetch(CFG.API_BASE + "/get-data");
-      if(!res.ok) return;
-      const json = await res.json();
-      if(json && json.data){
-        Object.keys(json.data).forEach(k=>{
-          try{ localStorage.setItem(k, JSON.stringify(json.data[k])); }catch(e){}
-        });
-        console.log("Backend se data load ho gaya");
-        // React ko refresh karne ke liye event
-        window.dispatchEvent(new Event("backend-loaded"));
-      }
-    }catch(e){
-      console.log("Backend load skip, localStorage use hoga", e);
-    }
-  }
-
-  // 2. localStorage me jab bhi pj_ wala data save ho, backend me bhi bhejo
-  const origSetItem = localStorage.setItem.bind(localStorage);
-  localStorage.setItem = function(key, value){
-    origSetItem(key, value);
-    if(key.startsWith(PREFIX)){
-      // debounce karke backend me save karo
-      clearTimeout(window._saveT);
-      window._saveT = setTimeout(saveToBackend, 800);
-    }
-  };
-
-  async function saveToBackend(){
-    try{
-      const data = {};
-      for(let i=0;i<localStorage.length;i++){
+      for(let i=0; i<localStorage.length; i++){
         const k = localStorage.key(i);
-        if(k && k.startsWith(PREFIX)){
-          try{ data[k] = JSON.parse(localStorage.getItem(k)); }catch(e){ data[k]=localStorage.getItem(k); }
+        if(k && k.startsWith("pj_")){
+          try{ data[k] = JSON.parse(localStorage.getItem(k)); }catch(e){}
         }
       }
-      await fetch(CFG.API_BASE + "/save", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({data})
-      });
-      console.log("Backend me save ho gaya");
-    }catch(e){
-      console.log("Backend save fail", e);
-    }
+    }catch(e){}
+    return data;
   }
 
-  // 3. Photo/Video upload ke liye - ab DataURL ki jagah real URL milega
+  let saveTimer = null;
+  function saveToBackend(){
+    if(!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY) return;
+    const data = collectData();
+    if(!data || Object.keys(data).length === 0) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try{
+        await fetch(CFG.API_BASE + "/save", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({data})
+        });
+        console.log("Backend save OK");
+      }catch(e){ console.warn("Backend save fail:", e); }
+    }, 800);
+  }
+
+  // Load ke dauraan save trigger na ho, isliye flag
+  let suppressSave = false;
+
+  // localStorage me jab bhi pj_* key likhi jaye, TURANT backend save trigger karo
+  // (pehle sirf tab switch/close par save hota tha - isliye incognito me data nahi dikhta tha)
+  const origSetItem = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(k, v){
+    const r = origSetItem(k, v);
+    if(!suppressSave && typeof k === "string" && k.startsWith("pj_")){
+      saveToBackend();
+    }
+    return r;
+  };
+
+  async function loadFromBackend(){
+    if(!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY) return;
+    try{
+      const res = await fetch(CFG.API_BASE + "/get-data");
+      const {data} = await res.json();
+      if(!data || Object.keys(data).length === 0) return;
+      suppressSave = true;
+      for(const [k, v] of Object.entries(data)){
+        try{
+          if(localStorage.getItem(k) === null){
+            const str = JSON.stringify(v);
+            origSetItem(k, str);
+            // React ko turant batayo (same tab me storage event fire nahi hota)
+            try{
+              window.dispatchEvent(new StorageEvent("storage", {key: k, newValue: str}));
+            }catch(e){}
+          }
+        }catch(e){}
+      }
+      suppressSave = false;
+      console.log("Backend load OK");
+    }catch(e){ console.warn("Backend load fail:", e); }
+  }
+
+  // Page khulne par backend se load karo
+  loadFromBackend();
+
+  // Dusre tab me badlaav ho to bhi save karo
+  window.addEventListener("storage", (e) => {
+    if(e.key && e.key.startsWith("pj_")) saveToBackend();
+  });
+
+  // Tab band/change par bhi save karo (backup)
+  document.addEventListener("visibilitychange", () => {
+    if(document.hidden) saveToBackend();
+  });
+  window.addEventListener("beforeunload", saveToBackend);
+
+  // Admin panel ke liye global functions
+  window.saveToBackend = saveToBackend;
+  window.loadFromBackend = loadFromBackend;
+
+  // Video upload ke liye signed URL lo aur file upload karo
   window.uploadToCloud = async function(file){
-    // Pehle backend se upload URL mango
+    if(!file) throw new Error("No file");
     const res = await fetch(CFG.API_BASE + "/upload-url", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
       body: JSON.stringify({filename: file.name, filetype: file.type})
     });
     const {uploadUrl, publicUrl} = await res.json();
-    // File ko upload karo
-    await fetch(uploadUrl, {method:"PUT", body: file, headers:{"Content-Type": file.type}});
+    await fetch(uploadUrl, {
+      method:"PUT",
+      body: file,
+      headers:{"Content-Type": file.type}
+    });
     return publicUrl;
   };
 
-  // Start
-  loadFromBackend();
+  console.log("Backend helper ready (instant save ON)");
 })();
