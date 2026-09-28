@@ -1,20 +1,31 @@
 // api/get-data.js - Vercel Serverless Function
-// Ye backend se website ka data deta hai
+// Ye Supabase se website ka data deta hai
+import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res){
-  // Yaha Supabase se data lao
-  // Abhi ke liye demo data, Supabase key lagane ke baad real data aayega
+  if(!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY){
+    return res.status(500).json({data: {}, error: "Supabase keys missing (Vercel env vars check karo)"});
+  }
 
-  // Example Supabase code (comment hatakar use karo):
-  // const { createClient } = await import('@supabase/supabase-js');
-  // const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-  // const { data } = await supabase.from('site_data').select('*').eq('id','main').single();
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+
+  const { data, error } = await supabase
+    .from('site_data')
+    .select('data')
+    .eq('id', 'main')
+    .single();
+
+  // PGRST116 = abhi tak koi row save nahi hui, ye error nahi hai
+  if(error && error.code !== 'PGRST116'){
+    console.error("Supabase fetch error:", error);
+    return res.status(500).json({data: {}, error: error.message});
+  }
 
   res.status(200).json({
-    data: {
-      // "pj_social": [],
-      // "pj_profile_photo": null
-    },
-    message: "Backend connected. Supabase lagane ke baad real data aayega."
+    data: (data && data.data) || {},
+    message: "Backend connected."
   });
 }
