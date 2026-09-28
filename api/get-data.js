@@ -6,7 +6,10 @@ export default async function handler(req, res){
   if(!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY){
     return res.status(500).json({data: {}, error: "Supabase keys missing (Vercel env vars check karo)"});
   }
-
+  
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  
   const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
