@@ -1,8 +1,8 @@
 // ===== BACKEND CONFIG =====
 // Yaha apni Supabase details dalo (free hai - supabase.com se milegi)
 const BACKEND_CONFIG = {
-  SUPABASE_URL: "https://nhluysdpqynbbgeiznes.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_rtb2e41WlBkghbP7XQ9guQ_kt_LUbm-",
+  SUPABASE_URL: "https://nhluysdpqynbbge1znes.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5obHV5c2RwcXluYmJnZWl6bmVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1Njk4NzIsImV4cCI6MjEwNjE0NTg3Mn0.CQJa-HG8Q0NJhC8YPSxwoiT1ky0A-g6TG9-FCUbdTSU",
   API_BASE: "/api"
 };
 
