@@ -1,5 +1,4 @@
-// Backend sync helper - Supabase se data load/save
-// v3 FIX: load poora hone tak SAVE BLOCK + server data ALWAYS wins
+// js/backend.js - v4: folder support + server wins + save suppression
 (function(){
   const CFG = window.BACKEND_CONFIG || {API_BASE:"/api"};
 
@@ -21,7 +20,7 @@
 
   function saveToBackend(){
     if(suppressSave) return;
-    if(!CFG.SUPABASE_URL ||!CFG.SUPABASE_ANON_KEY) return;
+    if(!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY) return;
     const data = collectData();
     if(!data || Object.keys(data).length === 0) return;
     clearTimeout(saveTimer);
@@ -50,7 +49,7 @@
   };
 
   async function loadFromBackend(){
-    if(!CFG.SUPABASE_URL ||!CFG.SUPABASE_ANON_KEY) return;
+    if(!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY) return;
     suppressSave = true;
     try{
       const res = await fetch(CFG.API_BASE + "/get-data");
@@ -60,26 +59,19 @@
           try{
             const str = JSON.stringify(v);
             origSetItem(k, str);
-            try{
-              window.dispatchEvent(new StorageEvent("storage", {key:k, newValue:str}));
-            }catch(e){}
+            try{ window.dispatchEvent(new StorageEvent("storage", {key:k, newValue:str})); }catch(e){}
           }catch(e){}
         }
       }
       console.log("Backend load OK");
-    }catch(e){
-      console.warn("Backend load fail:", e);
-    }finally{
-      suppressSave = false;
-    }
+    }catch(e){ console.warn("Backend load fail:", e); }
+    finally{ suppressSave = false; }
   }
 
   loadFromBackend();
-
   window.addEventListener("storage", (e) => {
     if(e.key && e.key.startsWith("pj_")) saveToBackend();
   });
-
   document.addEventListener("visibilitychange", () => {
     if(document.hidden) saveToBackend();
   });
@@ -88,21 +80,19 @@
   window.saveToBackend = saveToBackend;
   window.loadFromBackend = loadFromBackend;
 
-  window.uploadToCloud = async function(file){
+  // folder: "reels" | "videos" | "thumbnails" | "public"
+  window.uploadToCloud = async function(file, folder){
     if(!file) throw new Error("No file");
     const res = await fetch(CFG.API_BASE + "/upload-url", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({filename: file.name, filetype: file.type})
+      body: JSON.stringify({filename: file.name, filetype: file.type, folder: folder || "public"})
     });
     const {uploadUrl, publicUrl} = await res.json();
-    await fetch(uploadUrl, {
-      method:"PUT",
-      body: file,
-      headers:{"Content-Type": file.type}
-    });
+    if(!uploadUrl) throw new Error("Upload URL nahi mila");
+    await fetch(uploadUrl, { method:"PUT", body: file, headers:{"Content-Type": file.type} });
     return publicUrl;
   };
 
-  console.log("Backend helper ready (v3 - server wins)");
+  console.log("Backend helper ready (v4)");
 })();
